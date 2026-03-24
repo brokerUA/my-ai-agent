@@ -1,0 +1,15 @@
+[tools]
+go = "1.23"
+
+[tasks."build"]
+description = "Build the ADK agent"
+run = "go build -o agent-app main.go"
+
+[tasks."run"]
+description = "Run the ADK agent"
+depends = ["build"]
+run = "./agent-app"
+
+[tasks."test"]
+description = "Run tests"
+run = "go test ./..."
