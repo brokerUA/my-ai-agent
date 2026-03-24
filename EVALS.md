@@ -8,7 +8,7 @@ To run evaluations using the ADK Eval tool:
 2.  Configure your `evals/config.yaml` with test cases.
 3.  Run the following command:
     ```bash
-    adk eval run --config evals/config.yaml --target http://localhost:8081/api
+    adk eval run --config evals/config.yaml --target http://localhost:8080/api
     ```
 
 ## Evaluator Agent (Judge) Instructions

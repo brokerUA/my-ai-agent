@@ -142,7 +142,7 @@ func main() {
 		fmt.Fprintf(w, "ADK Agent %s is running. Agent card is available at /.well-known/ai-agent.json", card.Name)
 	})
 
-	port := ":8081"
+	port := ":8080"
 	slog.Info("Starting server", "port", port)
 	slog.Info("Agent Card URL", "url", fmt.Sprintf("http://localhost%s/.well-known/ai-agent.json", port))
 

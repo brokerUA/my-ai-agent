@@ -41,7 +41,7 @@ go build -o agent-app main.go
 ./agent-app
 ```
 
-The agent will be available at `http://localhost:8081`.
+The agent will be available at `http://localhost:8080`.
 
 ### Documentation
 
