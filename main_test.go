@@ -124,7 +124,7 @@ func (m *mockInvocationContext) Agent() agent.Agent {
 func TestWellKnownEndpoint(t *testing.T) {
 	_, card, _ := NewMyAgent()
 
-	req, err := http.NewRequest("GET", "/.well-known/ai-agent.json", nil)
+	req, err := http.NewRequest("GET", "/.well-known/agent-card.json", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

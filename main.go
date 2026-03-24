@@ -41,7 +41,7 @@ func NewMyAgent() (agent.Agent, AgentCard, error) {
 		},
 		Endpoints: []string{
 			"/api/v1/sessions",
-			"/.well-known/ai-agent.json",
+			"/.well-known/agent-card.json",
 		},
 		APISpec: "https://example.com/api-spec.yaml",
 	}
@@ -116,7 +116,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// 4. Add Well-Known URI for Agent Card
-	mux.HandleFunc("/.well-known/ai-agent.json", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -139,12 +139,12 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		fmt.Fprintf(w, "ADK Agent %s is running. Agent card is available at /.well-known/ai-agent.json", card.Name)
+		fmt.Fprintf(w, "ADK Agent %s is running. Agent card is available at /.well-known/agent-card.json", card.Name)
 	})
 
 	port := ":8080"
 	slog.Info("Starting server", "port", port)
-	slog.Info("Agent Card URL", "url", fmt.Sprintf("http://localhost%s/.well-known/ai-agent.json", port))
+	slog.Info("Agent Card URL", "url", fmt.Sprintf("http://localhost%s/.well-known/agent-card.json", port))
 
 	server := &http.Server{
 		Addr:    port,
