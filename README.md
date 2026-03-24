@@ -15,7 +15,7 @@ A custom AI agent implemented using the [Google ADK (Agent Development Kit)](htt
 
 ### Prerequisites
 
-- [Go 1.23+](https://golang.org/dl/)
+- [Go 1.25+](https://golang.org/dl/)
 - [mise](https://mise.jdx.st/) (optional, but recommended)
 - [Docker](https://www.docker.com/) (for containerization)
 
