@@ -1,0 +1,13 @@
+evalsets:
+  - name: basic-capabilities
+    description: Test basic greeting, search, and A2A capabilities.
+    cases:
+      - input: "Hello"
+        expected: "I am your ADK agent"
+      - input: "search"
+        expected: "Search results for 'ADK Go'"
+      - input: "a2a"
+        expected: "delegate tasks to other agents"
+metrics:
+  - name: ExactMatch
+    threshold: 0.8
