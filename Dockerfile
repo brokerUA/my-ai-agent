@@ -28,7 +28,7 @@ COPY --from=builder /app/agent-app .
 USER appuser
 
 # Expose the port the agent listens on
-EXPOSE 8081
+EXPOSE 8080
 
 # Run the application
 CMD ["./agent-app"]
