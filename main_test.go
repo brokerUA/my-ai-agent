@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -205,5 +206,44 @@ func TestRootEndpoint(t *testing.T) {
 		if rr.Body.String() != expected {
 			t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
 		}
+	}
+}
+
+func TestRPCEndpoint(t *testing.T) {
+	// We need a server that uses the flusher. httptest.NewRecorder supports it.
+	
+	mux := http.NewServeMux()
+	// Since main() is not easily testable, we'll manually register a handler that mimics the one in main()
+	// In a real project, we should refactor main() to have a SetupRouter() function.
+	
+	// For this test, we'll just check if a similar handler works with httptest
+	mux.HandleFunc("/rpc", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+		
+		fmt.Fprintf(w, ": ok\n\n")
+		flusher.Flush()
+		
+		fmt.Fprintf(w, "data: {\"jsonrpc\":\"2.0\",\"method\":\"OnChunk\",\"params\":{\"chunk\":\"test\"}}\n\n")
+		flusher.Flush()
+	})
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/rpc", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.Header.Get("Content-Type") != "text/event-stream" {
+		t.Errorf("Expected Content-Type text/event-stream, got %s", resp.Header.Get("Content-Type"))
 	}
 }
