@@ -54,7 +54,7 @@ func NewMyAgent() (agent.Agent, AgentCard, error) {
 		Endpoints: []string{
 			"/api/v1/sessions",
 			"/.well-known/agent-card.json",
-			"/rpc",
+			"/",
 		},
 		APISpec:            "https://example.com/api-spec.yaml",
 		PreferredTransport: "JSONRPC",
@@ -130,32 +130,8 @@ func main() {
 	// 3. Create the main HTTP router
 	mux := http.NewServeMux()
 
-	// 4. Add Well-Known URI for Agent Card
-	mux.HandleFunc("/.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		data, err := json.MarshalIndent(card, "", "  ")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Write(data)
-	})
-
-	// 5. Connect ADK API
-	mux.Handle("/api/", http.StripPrefix("/api", restServer))
-
-	// 7. Add JSON-RPC SSE handler for A2A
-	mux.HandleFunc("/rpc", func(w http.ResponseWriter, r *http.Request) {
+	handleRPC := func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Received RPC request", "method", r.Method, "url", r.URL.String())
-		if r.Method != http.MethodPost {
-			slog.Warn("Method not allowed", "method", r.Method)
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
 
 		var req struct {
 			Jsonrpc string      `json:"jsonrpc"`
@@ -164,14 +140,17 @@ func main() {
 			Id      interface{} `json:"id"`
 		}
 
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			slog.Error("Failed to decode JSON-RPC request", "error", err)
-			http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
-			return
+		// Try to decode JSON-RPC request from body if it's a POST
+		if r.Method == http.MethodPost {
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				slog.Error("Failed to decode JSON-RPC request", "error", err)
+				http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
+				return
+			}
 		}
 		slog.Info("RPC method", "method", req.Method, "id", req.Id)
 
-		if req.Method != "OnSendMessageStream" {
+		if req.Method != "" && req.Method != "OnSendMessageStream" {
 			slog.Warn("Method not found", "method", req.Method)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -199,8 +178,6 @@ func main() {
 		}
 
 		// Explicitly send the first byte to establish the stream and Content-Type
-		// Some proxies might wait for data before deciding on the content type if not explicitly set.
-		// Although we set the header, flushing an empty comment can help.
 		fmt.Fprintf(w, ": ok\n\n")
 		flusher.Flush()
 
@@ -240,14 +217,39 @@ func main() {
 		}
 		flusher.Flush()
 		slog.Info("Finished SSE stream")
+	}
+
+	// 4. Add Well-Known URI for Agent Card
+	mux.HandleFunc("/.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		data, err := json.MarshalIndent(card, "", "  ")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write(data)
 	})
 
-	// 6. Basic endpoint for testing
+	// 5. Connect ADK API
+	mux.Handle("/api/", http.StripPrefix("/api", restServer))
+
+	// 6. Root endpoint handling SSE and regular requests
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
+
+		// Check if it's an SSE request (A2A proxy often uses Accept: text/event-stream)
+		if r.Header.Get("Accept") == "text/event-stream" || r.Method == http.MethodPost {
+			handleRPC(w, r)
+			return
+		}
+
 		fmt.Fprintf(w, "ADK Agent %s is running. Agent card is available at /.well-known/agent-card.json", card.Name)
 	})
 
