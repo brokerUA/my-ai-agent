@@ -14,7 +14,6 @@ import (
 	"google.golang.org/adk/server/adkrest"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
-	"strings"
 )
 
 // AgentCard represents the structure of the agent card according to requirements.
@@ -134,10 +133,24 @@ func main() {
 		slog.Info("Received RPC request", "method", r.Method, "url", r.URL.String())
 
 		var req struct {
-			Jsonrpc string      `json:"jsonrpc"`
-			Method  string      `json:"method"`
-			Params  interface{} `json:"params"`
-			Id      interface{} `json:"id"`
+			Jsonrpc string `json:"jsonrpc"`
+			Method  string `json:"method"`
+			Params  struct {
+				Message struct {
+					Role      string `json:"role"`
+					Parts     []struct {
+						Kind string `json:"kind"`
+						Text string `json:"text,omitempty"`
+						File *struct {
+							MimeType string `json:"mimeType"`
+							Data     string `json:"data"`
+						} `json:"file,omitempty"`
+					} `json:"parts"`
+					MessageId string `json:"messageId"`
+				} `json:"message"`
+				Metadata map[string]interface{} `json:"metadata"`
+			} `json:"params"`
+			Id interface{} `json:"id"`
 		}
 
 		// Try to decode JSON-RPC request from body if it's a POST
@@ -150,7 +163,7 @@ func main() {
 		}
 		slog.Info("RPC method", "method", req.Method, "id", req.Id)
 
-		if req.Method != "" && req.Method != "OnSendMessageStream" {
+		if req.Method != "" && req.Method != "message/stream" && req.Method != "OnSendMessageStream" {
 			slog.Warn("Method not found", "method", req.Method)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -181,40 +194,88 @@ func main() {
 		fmt.Fprintf(w, ": ok\n\n")
 		flusher.Flush()
 
-		// Simulate partial response generation
-		chunks := []string{"Hello", ", I ", "am ", "your ", "Go", "-agent", ". ", "I ", "support ", "streaming!"}
-		fullResult := strings.Join(chunks, "")
+		// Generate IDs for the task/context
+		taskId := "225d6247-06ba-4cda-a08b-33ae35c8dcfa"
+		contextId := "05217e44-7e9f-473e-ab4f-2c2dde50a2b1"
+		artifactId := "9b6934dd-37e3-4eb1-8766-962efaab63a1"
+		timestamp := time.Now().Format("2006-01-02T15:04:05.000000")
 
-		for _, chunk := range chunks {
-			chunkData := map[string]interface{}{
-				"jsonrpc": "2.0",
-				"method":  "OnChunk",
-				"params": map[string]interface{}{
-					"chunk": chunk,
-				},
-			}
-			data, _ := json.Marshal(chunkData)
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-				slog.Error("Failed to write chunk", "error", err)
-				return
-			}
-			flusher.Flush()
-			time.Sleep(200 * time.Millisecond)
-		}
-
-		// Send the final result
-		resultData := map[string]interface{}{
+		// 1. Initial task status update: submitted
+		initialEvent := map[string]interface{}{
 			"jsonrpc": "2.0",
-			"method":  "OnResult",
-			"params": map[string]interface{}{
-				"result": fullResult,
+			"id":      req.Id,
+			"result": map[string]interface{}{
+				"id":        taskId,
+				"contextId": contextId,
+				"status": map[string]interface{}{
+					"state":     "submitted",
+					"timestamp": timestamp,
+				},
+				"history": []map[string]interface{}{
+					{
+						"role":      req.Params.Message.Role,
+						"parts":     req.Params.Message.Parts,
+						"messageId": req.Params.Message.MessageId,
+						"taskId":    taskId,
+						"contextId": contextId,
+					},
+				},
+				"kind":     "task",
+				"metadata": map[string]interface{}{},
 			},
 		}
-		data, _ := json.Marshal(resultData)
-		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
-			slog.Error("Failed to write result", "error", err)
-			return
+		data, _ := json.Marshal(initialEvent)
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+		time.Sleep(500 * time.Millisecond)
+
+		// 2. Artifact updates
+		sections := []string{"<section 1...>", "<section 2...>", "<section 3...>"}
+		for i, section := range sections {
+			appendMode := i > 0
+			lastChunk := i == len(sections)-1
+
+			updateEvent := map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      req.Id,
+				"result": map[string]interface{}{
+					"taskId":    taskId,
+					"contextId": contextId,
+					"artifact": map[string]interface{}{
+						"artifactId": artifactId,
+						"parts": []map[string]interface{}{
+							{"type": "text", "text": section},
+						},
+					},
+					"append":    appendMode,
+					"lastChunk": lastChunk,
+					"kind":      "artifact-update",
+				},
+			}
+			data, _ := json.Marshal(updateEvent)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+			time.Sleep(500 * time.Millisecond)
 		}
+
+		// 3. Final status update: completed
+		finalTimestamp := time.Now().Format("2006-01-02T15:04:05.000000")
+		finalEvent := map[string]interface{}{
+			"jsonrpc": "2.0",
+			"id":      req.Id,
+			"result": map[string]interface{}{
+				"taskId":    taskId,
+				"contextId": contextId,
+				"status": map[string]interface{}{
+					"state":     "completed",
+					"timestamp": finalTimestamp,
+				},
+				"final": true,
+				"kind":  "status-update",
+			},
+		}
+		data, _ = json.Marshal(finalEvent)
+		fmt.Fprintf(w, "data: %s\n\n", data)
 		flusher.Flush()
 		slog.Info("Finished SSE stream")
 	}
