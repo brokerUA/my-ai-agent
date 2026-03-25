@@ -35,8 +35,20 @@ func TestNewMyAgent(t *testing.T) {
 		t.Errorf("Expected agent version '1.1.0', got '%s'", card.Version)
 	}
 
-	if len(card.Capabilities) < 4 {
-		t.Errorf("Expected at least 4 capabilities, got %d", len(card.Capabilities))
+	if !card.Capabilities.Streaming {
+		t.Error("Expected streaming capability to be true")
+	}
+
+	if !card.Capabilities.StateTransitionHistory {
+		t.Error("Expected stateTransitionHistory capability to be true")
+	}
+
+	if card.ProtocolVersion != "0.3.0" {
+		t.Errorf("Expected protocol version '0.3.0', got '%s'", card.ProtocolVersion)
+	}
+
+	if card.PreferredTransport != "JSONRPC" {
+		t.Errorf("Expected preferred transport 'JSONRPC', got '%s'", card.PreferredTransport)
 	}
 }
 

@@ -14,36 +14,51 @@ import (
 	"google.golang.org/adk/server/adkrest"
 	"google.golang.org/adk/session"
 	"google.golang.org/genai"
+	"strings"
 )
 
 // AgentCard represents the structure of the agent card according to requirements.
 type AgentCard struct {
-	Name         string            `json:"name"`
-	Description  string            `json:"description"`
-	Version      string            `json:"version"`
-	Capabilities []string          `json:"capabilities"`
-	Author       string            `json:"author"`
-	Auth         map[string]string `json:"auth"`
-	Endpoints    []string          `json:"endpoints"`
-	APISpec      string            `json:"api_spec"`
+	Name               string            `json:"name"`
+	Description        string            `json:"description"`
+	Version            string            `json:"version"`
+	Capabilities       Capabilities      `json:"capabilities"`
+	Author             string            `json:"author"`
+	Auth               map[string]string `json:"auth"`
+	Endpoints          []string          `json:"endpoints"`
+	APISpec            string            `json:"api_spec"`
+	PreferredTransport string            `json:"preferredTransport"`
+	ProtocolVersion    string            `json:"protocolVersion"`
+}
+
+// Capabilities represents the agent's capabilities.
+type Capabilities struct {
+	Streaming              bool `json:"streaming"`
+	StateTransitionHistory bool `json:"stateTransitionHistory"`
 }
 
 // NewMyAgent creates an instance of the agent with a card.
 func NewMyAgent() (agent.Agent, AgentCard, error) {
 	card := AgentCard{
-		Name:         "MyGoAgent",
-		Description:  "This is an agent implemented in Go using ADK with search and A2A capabilities.",
-		Version:      "1.1.0",
-		Capabilities: []string{"greeting", "info", "search", "a2a"},
-		Author:       "Dmytro Andrieiev",
+		Name:        "MyGoAgent",
+		Description: "This is an agent implemented in Go using ADK with search and A2A capabilities.",
+		Version:     "1.1.0",
+		Capabilities: Capabilities{
+			Streaming:              true,
+			StateTransitionHistory: true,
+		},
+		Author: "Dmytro Andrieiev",
 		Auth: map[string]string{
 			"type": "none",
 		},
 		Endpoints: []string{
 			"/api/v1/sessions",
 			"/.well-known/agent-card.json",
+			"/rpc",
 		},
-		APISpec: "https://example.com/api-spec.yaml",
+		APISpec:            "https://example.com/api-spec.yaml",
+		PreferredTransport: "JSONRPC",
+		ProtocolVersion:    "0.3.0",
 	}
 
 	// Mock search tool simulation
@@ -132,6 +147,83 @@ func main() {
 
 	// 5. Connect ADK API
 	mux.Handle("/api/", http.StripPrefix("/api", restServer))
+
+	// 7. Add JSON-RPC SSE handler for A2A
+	mux.HandleFunc("/rpc", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req struct {
+			Jsonrpc string      `json:"jsonrpc"`
+			Method  string      `json:"method"`
+			Params  interface{} `json:"params"`
+			Id      interface{} `json:"id"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
+			return
+		}
+
+		if req.Method != "OnSendMessageStream" {
+			// In reality, there should be a full JSON-RPC processing here,
+			// but for this task, we implement specifically OnSendMessageStream.
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0",
+				"error": map[string]interface{}{
+					"code":    -32601,
+					"message": "Method not found",
+				},
+				"id": req.Id,
+			})
+			return
+		}
+
+		// Set headers for SSE
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no") // Disable buffering for nginx if present
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+
+		// Simulate partial response generation
+		chunks := []string{"Hello", ", I ", "am ", "your ", "Go", "-agent", ". ", "I ", "support ", "streaming!"}
+		fullResult := strings.Join(chunks, "")
+
+		for _, chunk := range chunks {
+			chunkData := map[string]interface{}{
+				"jsonrpc": "2.0",
+				"method":  "OnChunk",
+				"params": map[string]interface{}{
+					"chunk": chunk,
+				},
+			}
+			data, _ := json.Marshal(chunkData)
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			flusher.Flush()
+			time.Sleep(200 * time.Millisecond) // Simulate generation delay
+		}
+
+		// Send the final result
+		resultData := map[string]interface{}{
+			"jsonrpc": "2.0",
+			"method":  "OnResult",
+			"params": map[string]interface{}{
+				"result": fullResult,
+			},
+		}
+		data, _ := json.Marshal(resultData)
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	})
 
 	// 6. Basic endpoint for testing
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
