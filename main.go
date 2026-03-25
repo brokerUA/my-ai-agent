@@ -250,7 +250,7 @@ func main() {
 			return
 		}
 
-		fmt.Fprintf(w, "ADK Agent %s is running. Agent card is available at /.well-known/agent-card.json", card.Name)
+		fmt.Fprintf(w, "ADK Agent %s is running. Agent card is available at /.well-known/agent-card.json. Enjoy!", card.Name)
 	})
 
 	port := ":8080"
