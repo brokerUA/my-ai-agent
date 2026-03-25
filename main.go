@@ -150,7 +150,9 @@ func main() {
 
 	// 7. Add JSON-RPC SSE handler for A2A
 	mux.HandleFunc("/rpc", func(w http.ResponseWriter, r *http.Request) {
+		slog.Info("Received RPC request", "method", r.Method, "url", r.URL.String())
 		if r.Method != http.MethodPost {
+			slog.Warn("Method not allowed", "method", r.Method)
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -163,13 +165,14 @@ func main() {
 		}
 
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			slog.Error("Failed to decode JSON-RPC request", "error", err)
 			http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
 			return
 		}
+		slog.Info("RPC method", "method", req.Method, "id", req.Id)
 
 		if req.Method != "OnSendMessageStream" {
-			// In reality, there should be a full JSON-RPC processing here,
-			// but for this task, we implement specifically OnSendMessageStream.
+			slog.Warn("Method not found", "method", req.Method)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0",
@@ -186,13 +189,20 @@ func main() {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("X-Accel-Buffering", "no") // Disable buffering for nginx if present
+		w.Header().Set("X-Accel-Buffering", "no")
 
 		flusher, ok := w.(http.Flusher)
 		if !ok {
+			slog.Error("Streaming unsupported by response writer")
 			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 			return
 		}
+
+		// Explicitly send the first byte to establish the stream and Content-Type
+		// Some proxies might wait for data before deciding on the content type if not explicitly set.
+		// Although we set the header, flushing an empty comment can help.
+		fmt.Fprintf(w, ": ok\n\n")
+		flusher.Flush()
 
 		// Simulate partial response generation
 		chunks := []string{"Hello", ", I ", "am ", "your ", "Go", "-agent", ". ", "I ", "support ", "streaming!"}
@@ -207,9 +217,12 @@ func main() {
 				},
 			}
 			data, _ := json.Marshal(chunkData)
-			fmt.Fprintf(w, "data: %s\n\n", data)
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				slog.Error("Failed to write chunk", "error", err)
+				return
+			}
 			flusher.Flush()
-			time.Sleep(200 * time.Millisecond) // Simulate generation delay
+			time.Sleep(200 * time.Millisecond)
 		}
 
 		// Send the final result
@@ -221,8 +234,12 @@ func main() {
 			},
 		}
 		data, _ := json.Marshal(resultData)
-		fmt.Fprintf(w, "data: %s\n\n", data)
+		if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+			slog.Error("Failed to write result", "error", err)
+			return
+		}
 		flusher.Flush()
+		slog.Info("Finished SSE stream")
 	})
 
 	// 6. Basic endpoint for testing
