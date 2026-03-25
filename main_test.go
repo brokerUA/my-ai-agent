@@ -228,7 +228,7 @@ func TestRPCEndpoint(t *testing.T) {
 			fmt.Fprintf(w, ": ok\n\n")
 			flusher.Flush()
 			
-			fmt.Fprintf(w, "data: {\"jsonrpc\":\"2.0\",\"method\":\"OnChunk\",\"params\":{\"chunk\":\"test\"}}\n\n")
+			fmt.Fprintf(w, "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"kind\":\"task\",\"status\":{\"state\":\"submitted\"}}}\n\n")
 			flusher.Flush()
 			return
 		}
