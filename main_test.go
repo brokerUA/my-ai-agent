@@ -210,40 +210,65 @@ func TestRootEndpoint(t *testing.T) {
 }
 
 func TestRPCEndpoint(t *testing.T) {
-	// We need a server that uses the flusher. httptest.NewRecorder supports it.
-	
+	// In the real app, we registered the handler at the root with SSE support if Accept: text/event-stream is present
 	mux := http.NewServeMux()
-	// Since main() is not easily testable, we'll manually register a handler that mimics the one in main()
-	// In a real project, we should refactor main() to have a SetupRouter() function.
 	
-	// For this test, we'll just check if a similar handler works with httptest
-	mux.HandleFunc("/rpc", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+	// Mock implementation similar to the one in main.go
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Accept") == "text/event-stream" || r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+				return
+			}
+			
+			fmt.Fprintf(w, ": ok\n\n")
+			flusher.Flush()
+			
+			fmt.Fprintf(w, "data: {\"jsonrpc\":\"2.0\",\"method\":\"OnChunk\",\"params\":{\"chunk\":\"test\"}}\n\n")
+			flusher.Flush()
 			return
 		}
-		
-		fmt.Fprintf(w, ": ok\n\n")
-		flusher.Flush()
-		
-		fmt.Fprintf(w, "data: {\"jsonrpc\":\"2.0\",\"method\":\"OnChunk\",\"params\":{\"chunk\":\"test\"}}\n\n")
-		flusher.Flush()
+		w.Write([]byte("Regular response"))
 	})
 
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	resp, err := http.Post(ts.URL+"/rpc", "application/json", nil)
+	// 1. Test regular GET request
+	respRegular, err := http.Get(ts.URL + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	if respRegular.Header.Get("Content-Type") == "text/event-stream" {
+		t.Error("Regular GET request should not return text/event-stream")
+	}
+	respRegular.Body.Close()
 
-	if resp.Header.Get("Content-Type") != "text/event-stream" {
-		t.Errorf("Expected Content-Type text/event-stream, got %s", resp.Header.Get("Content-Type"))
+	// 2. Test GET request with Accept: text/event-stream
+	reqSSE, _ := http.NewRequest("GET", ts.URL+"/", nil)
+	reqSSE.Header.Set("Accept", "text/event-stream")
+	respSSE, err := http.DefaultClient.Do(reqSSE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respSSE.Body.Close()
+
+	if respSSE.Header.Get("Content-Type") != "text/event-stream" {
+		t.Errorf("Expected Content-Type text/event-stream for SSE request, got %s", respSSE.Header.Get("Content-Type"))
+	}
+
+	// 3. Test POST request (should also return SSE)
+	respPost, err := http.Post(ts.URL+"/", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer respPost.Body.Close()
+
+	if respPost.Header.Get("Content-Type") != "text/event-stream" {
+		t.Errorf("Expected Content-Type text/event-stream for POST request, got %s", respPost.Header.Get("Content-Type"))
 	}
 }
