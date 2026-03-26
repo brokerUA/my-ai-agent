@@ -6,7 +6,7 @@ Learning Professor is an educational AI agent that demonstrates complex interact
 ## Core Capabilities
 - **Academic Lecture Generation**: Generates exactly one technically precise academic sentence about a given topic using Google Gemini LLM.
 - **A2A (Agent-to-Agent) Interaction**: Automatically sends the generated content to a student agent for critique.
-- **Agent Discovery**: Provides metadata about its version, author, and capabilities via `/.well-known/agent.json`.
+- **Agent Discovery**: Provides metadata about its version, author, and capabilities via `/.well-known/agent-card.json`.
 - **REST API**: Exposes ADK-compliant endpoints for skill execution.
 
 ## Technical Requirements
@@ -20,7 +20,7 @@ Learning Professor is an educational AI agent that demonstrates complex interact
 - [x] Correctly implements the `GenerateLecture` skill.
 - [x] Successfully integrates with Google Gemini for text generation.
 - [x] Demonstrates functional A2A communication with the student agent.
-- [x] Exposes compliant `agent.json` metadata.
+- [x] Exposes compliant `agent-card.json` metadata.
 - [x] Includes evaluation set in `evals/config.yaml`.
 - [x] Passes unit tests in `src/main_test.go`.
 - [x] Successfully builds via Docker and pushes to GHCR.

@@ -2,7 +2,7 @@
 
 ## File Inventory
 
-- **`agent.json`**: Agent metadata defining name, version, and capabilities. Used for agent discovery.
+- **`agent-card.json`**: Agent metadata defining name, version, and capabilities. Used for agent discovery.
 - **`src/main.go`**: The entry point of the ADK agent.
   - Implements the `Professor` structure with LLM and A2A clients.
   - Configures the ADK agent using `github.com/kagent-dev/kagent/go/adk`.
