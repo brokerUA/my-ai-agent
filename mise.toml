@@ -1,15 +1,32 @@
 [tools]
 go = "1.25"
 
+[env]
+BUILD_NAME = "learning-professor"
+KAGENT_CONTROLLER_URL = "http://kagent-controller.kagent.svc.cluster.local:8083"
+STUDENT_AGENT_NAME = "learning-student"
+STUDENT_AGENT_NAMESPACE = "kagent"
+CRITIQUE_SKILL_ID = "critique-content-skill"
+LLM_NAME = "gemini-2.0-flash"
+GOOGLE_API_KEY = "your-api-key-here"
+
 [tasks."build"]
 description = "Build the ADK agent"
-run = "go build -o agent-app main.go"
+run = "cd src && go build -o ../${BUILD_NAME} main.go"
 
 [tasks."run"]
 description = "Run the ADK agent"
 depends = ["build"]
-run = "./agent-app"
+run = "./${BUILD_NAME}"
 
 [tasks."test"]
 description = "Run tests"
-run = "go test ./..."
+run = "cd src && go test ./..."
+
+[tasks."clean"]
+description = "Remove build artifacts"
+run = "rm -f ${BUILD_NAME}"
+
+[tasks.docker-build]
+description = "Build the Docker image"
+run = "docker build -t ghcr.io/brokerua/my-ai-agent:latest ."

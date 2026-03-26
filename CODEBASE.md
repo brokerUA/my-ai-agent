@@ -2,33 +2,32 @@
 
 ## File Inventory
 
-- **`evals/config.yaml`**: Evaluation dataset for automated quality checks using `adk eval`.
-- **`main.go`**: The entry point of the ADK agent.
-  - Implements the `AgentCard` structure with Auth, Endpoints, and API Spec.
-  - Configures the ADK agent using `google.golang.org/adk/agent`.
-  - Implements simulated Search and A2A capabilities.
-  - Sets up an HTTP server with endpoints for `/.well-known/ai-agent.json` and the standard ADK REST API.
-- **`main_test.go`**: Unit tests for the agent and its endpoints.
-- **`DESIGN_SPEC.md`**: Technical specification and requirements document as per ADK development guide.
-- **`Dockerfile`**: Defines the multi-stage build process for creating a lightweight container image based on Alpine, with a non-root user for security.
+- **`agent.json`**: Agent metadata defining name, version, and capabilities. Used for agent discovery.
+- **`src/main.go`**: The entry point of the ADK agent.
+  - Implements the `Professor` structure with LLM and A2A clients.
+  - Configures the ADK agent using `github.com/kagent-dev/kagent/go/adk`.
+  - Implements `GenerateLecture` skill using Google Gemini LLM.
+  - Communicates with a student agent via A2A.
+- **`src/main_test.go`**: Unit tests for the agent logic and skill handlers.
+- **`DESIGN_SPEC.md`**: Technical specification and requirements document for the Learning Professor agent.
+- **`Dockerfile`**: Defines the multi-stage build process for creating a lightweight container image based on Alpine.
 - **`mise.toml`**: Project configuration for `mise`. Includes Go version and automation tasks for building and running.
-- **`.github/workflows/deploy.yml`**: GitHub Actions workflow for CI/CD. Builds and pushes the Docker image to GHCR.
-- **`go.mod` / `go.sum`**: Go dependency management.
+- **`evals/config.yaml`**: Evaluation dataset for automated quality checks using `adk eval`.
+- **`src/go.mod` / `src/go.sum`**: Go dependency management.
 
 ## Technical Architecture
 
-The agent is built on the [Google ADK](https://github.com/google/adk-go). It follows the ADK pattern for implementing agents and exposing them via REST API.
+The agent is built on the [Kagent ADK](https://github.com/kagent-dev/kagent/tree/main/go/adk). It follows the ADK pattern for implementing tools (skills) and exposing them.
 
 Key components:
-1. **Agent Metadata**: Managed by `AgentCard`.
-2. **REST API**: Handled by `adkrest.NewServer`.
-3. **Well-known URI**: Custom handler at `/.well-known/ai-agent.json` to provide agent discovery.
-4. **Observability**: Structured logging using `log/slog`.
+1. **ADK App**: Managed by `adk.NewApp`.
+2. **Gemini Integration**: Uses `google.golang.org/genai` to generate technically precise sentences.
+3. **A2A Client**: Uses `adk.NewA2AClient()` to delegate tasks (critique) to a student agent.
+4. **Environment Configuration**: Requires several environment variables for connection and authentication.
 
 ## CI/CD Pipeline
 
-The pipeline uses `docker/build-push-action@v5` to:
-- Authenticate with GHCR.
+The pipeline is configured to:
 - Build the image from `Dockerfile`.
-- Tag it with `latest` and the full git commit SHA.
-- Push the image to the repository's container registry.
+- Push the image to the repository's container registry (GHCR).
+- Tag it with `latest` and the git commit SHA.

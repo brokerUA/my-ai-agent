@@ -1,31 +1,31 @@
-# Design Spec: MyGoAgent
+# Design Spec: Learning Professor Agent
 
 ## Purpose
-MyGoAgent is a reference implementation of an AI agent using the Google ADK for Go. It demonstrates core agent capabilities, discovery via Agent Card, and REST API integration.
+Learning Professor is an educational AI agent that demonstrates complex interaction patterns using the Kagent ADK. It focuses on generating high-quality academic content and collaborating with other agents (Student Agent) for peer-review and critique.
 
 ## Core Capabilities
-- **Greeting**: Responds with a friendly greeting and introduces itself.
-- **Search**: Simulated tool to demonstrate information retrieval.
-- **A2A (Agent-to-Agent)**: Supports delegating tasks to other specialized agents.
-- **Discovery**: Provides metadata about its version, author, and capabilities via a standard well-known URI.
-- **REST API**: Exposes standard ADK endpoints for session-based interactions.
+- **Academic Lecture Generation**: Generates exactly one technically precise academic sentence about a given topic using Google Gemini LLM.
+- **A2A (Agent-to-Agent) Interaction**: Automatically sends the generated content to a student agent for critique.
+- **Agent Discovery**: Provides metadata about its version, author, and capabilities via `/.well-known/agent.json`.
+- **REST API**: Exposes ADK-compliant endpoints for skill execution.
 
 ## Technical Requirements
 - **Runtime**: Go 1.25+
-- **Framework**: google.golang.org/adk (ADK-Go)
+- **Framework**: github.com/kagent-dev/kagent/go/adk
+- **LLM**: Google Gemini (via `google.golang.org/genai`)
 - **Deployment**: Dockerized (Alpine-based)
-- **Observability**: Structured logging and OpenTelemetry tracing (planned).
+- **Environment**: Requires access to a Kagent Controller for A2A communication.
 
 ## Success Criteria
-- [x] Correctly implements `agent.Agent` interface.
-- [x] Exposes `/.well-known/ai-agent.json` with expanded metadata (Auth, Endpoints, API Spec).
-- [x] Simulated search tool returns relevant mock data.
-- [x] Supports A2A communication patterns.
+- [x] Correctly implements the `GenerateLecture` skill.
+- [x] Successfully integrates with Google Gemini for text generation.
+- [x] Demonstrates functional A2A communication with the student agent.
+- [x] Exposes compliant `agent.json` metadata.
 - [x] Includes evaluation set in `evals/config.yaml`.
-- [x] Passes unit tests for core endpoints.
-- [x] Successfully builds and pushes Docker image via CI/CD.
+- [x] Passes unit tests in `src/main_test.go`.
+- [x] Successfully builds via Docker and pushes to GHCR.
 
 ## Constraints
-- Must use standard Go library where possible.
-- Must follow ADK-Go patterns for session management.
-- Deployment must be secure (non-root user in Docker).
+- Must respond in English only for academic precision.
+- Must follow the single-sentence constraint for lecture generation.
+- Must use secure practices (non-root user in Docker, environment-based secrets).
