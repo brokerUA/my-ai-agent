@@ -1,4 +1,4 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -9,6 +9,9 @@ RUN apk add --no-cache git
 COPY src/go.mod ./
 # (If go.sum is present, copy it as well)
 COPY src/go.sum* ./
+
+# Copy local modules (needed for go mod download due to replace directives)
+COPY src/adk-local/ ./adk-local/
 
 # Download dependencies
 RUN go mod download
