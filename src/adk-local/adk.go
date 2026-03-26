@@ -43,11 +43,11 @@ func (a *App) Run() error {
 
 	mux := http.NewServeMux()
 	
-	mux.HandleFunc("GET /.well-known/agent.json", func(w http.ResponseWriter, r *http.Request) {
-		content, err := os.ReadFile("agent.json")
+	mux.HandleFunc("GET /.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
+		content, err := os.ReadFile("agent-card.json")
 		if err != nil {
 			// Try parent directory if running from src or a subdirectory
-			content, err = os.ReadFile("../agent.json")
+			content, err = os.ReadFile("../agent-card.json")
 			if err != nil {
 				http.Error(w, "Agent Card not found", http.StatusNotFound)
 				return

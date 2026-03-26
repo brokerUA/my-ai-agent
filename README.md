@@ -60,7 +60,7 @@ The agent will be available at `http://localhost:8080`.
 
 ### Endpoints
 
-- `GET /.well-known/agent.json`: Agent Card (metadata).
+- `GET /.well-known/agent-card.json`: Agent Card (metadata).
 - `POST /api/skill/generate-lecture-skill`: Main skill for generating academic content.
 
 ## License

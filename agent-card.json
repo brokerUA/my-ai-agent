@@ -5,7 +5,7 @@
   "author": "Dmytro Andrieiev",
   "endpoints": {
     "skill": "/api/skill/{skill_id}",
-    "wellKnown": "/.well-known/agent.json"
+    "wellKnown": "/.well-known/agent-card.json"
   },
   "capabilities": [
     {
