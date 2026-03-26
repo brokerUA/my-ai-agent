@@ -1,34 +1,40 @@
-# Build stage
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
-COPY go.mod go.sum ./
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Copy dependency manifests
+COPY src/go.mod ./
+# (If go.sum is present, copy it as well)
+COPY src/go.sum* ./
+
+# Copy local modules (needed for go mod download due to replace directives)
+COPY src/adk-local/ ./adk-local/
+
+# Download dependencies
 RUN go mod download
 
 # Copy source code
-COPY main.go ./
+COPY src/ ./
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o agent-app main.go
+# Build the agent binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o agent main.go
 
-# Final stage
-FROM alpine:latest
+# Use a minimal runtime image
+FROM alpine:3.18
 
-# Create a non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-WORKDIR /app
+WORKDIR /root/
 
 # Copy the binary from the builder stage
-COPY --from=builder /app/agent-app .
+COPY --from=builder /app/agent .
 
-# Use non-root user
-USER appuser
+# Set environment variables for LLM access
+ENV GOOGLE_API_KEY=""
 
-# Expose the port the agent listens on
+# Expose any necessary ports (assuming 8080 as standard)
 EXPOSE 8080
 
-# Run the application
-CMD ["./agent-app"]
+# Command to run the agent
+CMD ["./agent"]
