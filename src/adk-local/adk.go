@@ -2,17 +2,17 @@ package adk
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"fmt"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
 	"net/http"
-	"os"
+
+	_ "embed"
 )
 
-//go:embed ../agent-card.json
+//go:embed agent-card.json
 var agentCard []byte
 
 type App struct {
