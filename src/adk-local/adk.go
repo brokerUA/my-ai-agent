@@ -2,6 +2,7 @@ package adk
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"github.com/go-logr/logr"
@@ -10,6 +11,9 @@ import (
 	"net/http"
 	"os"
 )
+
+//go:embed ../agent-card.json
+var agentCard []byte
 
 type App struct {
 	name   string
@@ -44,17 +48,8 @@ func (a *App) Run() error {
 	mux := http.NewServeMux()
 	
 	mux.HandleFunc("GET /.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
-		content, err := os.ReadFile("agent-card.json")
-		if err != nil {
-			// Try parent directory if running from src or a subdirectory
-			content, err = os.ReadFile("../agent-card.json")
-			if err != nil {
-				http.Error(w, "Agent Card not found", http.StatusNotFound)
-				return
-			}
-		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(content)
+		w.Write(agentCard)
 	})
 
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
