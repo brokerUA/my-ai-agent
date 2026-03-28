@@ -2,6 +2,7 @@ package adk
 
 import (
 	"context"
+	"io"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -106,7 +107,22 @@ func (a *App) Run() error {
 
 	a.logger.Info("Agent started", "name", a.name, "addr", ":8080")
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		a.logger.Info("Incoming request", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		var body []byte
+		if r.Body != nil {
+			var err error
+			body, err = io.ReadAll(r.Body)
+			if err != nil {
+				a.logger.Error(err, "Failed to read request body")
+			} else {
+				r.Body = io.NopCloser(bytes.NewBuffer(body))
+			}
+		}
+		a.logger.Info("Incoming request", 
+			"method", r.Method, 
+			"path", r.URL.Path, 
+			"remote_addr", r.RemoteAddr,
+			"body", string(body),
+		)
 		mux.ServeHTTP(w, r)
 	})
 	return http.ListenAndServe(":8080", handler)
