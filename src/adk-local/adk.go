@@ -105,7 +105,11 @@ func (a *App) Run() error {
 	})
 
 	a.logger.Info("Agent started", "name", a.name, "addr", ":8080")
-	return http.ListenAndServe(":8080", mux)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		a.logger.Info("Incoming request", "method", r.Method, "path", r.URL.Path, "remote_addr", r.RemoteAddr)
+		mux.ServeHTTP(w, r)
+	})
+	return http.ListenAndServe(":8080", handler)
 }
 
 type InvokeRequest struct {
