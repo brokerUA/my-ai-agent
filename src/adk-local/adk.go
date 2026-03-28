@@ -51,11 +51,13 @@ func (a *App) Run() error {
 	mux := http.NewServeMux()
 	
 	mux.HandleFunc("GET /.well-known/agent-card.json", func(w http.ResponseWriter, r *http.Request) {
+		a.logger.Info("Incoming request", "method", r.Method, "path", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(agentCard)
 	})
 
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		a.logger.Info("Incoming request", "method", r.Method, "path", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status": "online",
@@ -66,6 +68,8 @@ func (a *App) Run() error {
 
 	mux.HandleFunc("POST /api/skill/", func(w http.ResponseWriter, r *http.Request) {
 		skillID := r.URL.Path[len("/api/skill/"):]
+		a.logger.Info("Incoming request", "skillID", skillID, "method", r.Method, "path", r.URL.Path)
+
 		var tool *Tool
 		for _, t := range a.tools {
 			if t.Name == skillID {
@@ -75,22 +79,27 @@ func (a *App) Run() error {
 		}
 
 		if tool == nil {
+			a.logger.Error(nil, "Skill not found", "skillID", skillID)
 			http.Error(w, "Skill not found", http.StatusNotFound)
 			return
 		}
 
 		var args map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+			a.logger.Error(err, "Failed to decode request body")
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+		a.logger.Info("Request args", "args", args)
 
 		result, err := tool.Handler(r.Context(), args)
 		if err != nil {
+			a.logger.Error(err, "Tool handler error", "skillID", skillID)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		a.logger.Info("Tool result", "skillID", skillID, "result", result)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{"output": result})
 	})
@@ -115,6 +124,7 @@ func NewA2AClient() *A2AClient {
 }
 
 func (c *A2AClient) Invoke(ctx context.Context, baseURL string, req InvokeRequest) (*InvokeResponse, error) {
+	fmt.Printf("[INFO] A2AClient.Invoke: baseURL=%s, skillID=%s\n", baseURL, req.SkillID)
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse base URL: %v", err)
@@ -133,6 +143,7 @@ func (c *A2AClient) Invoke(ctx context.Context, baseURL string, req InvokeReques
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request input: %v", err)
 	}
+	fmt.Printf("[INFO] Sending A2A request to %s with body: %s\n", u.String(), string(body))
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewBuffer(body))
 	if err != nil {
@@ -142,10 +153,12 @@ func (c *A2AClient) Invoke(ctx context.Context, baseURL string, req InvokeReques
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
+		fmt.Printf("[ERROR] A2A request failed: %v\n", err)
 		return nil, fmt.Errorf("request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
+	fmt.Printf("[INFO] A2A response status: %d\n", resp.StatusCode)
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("request failed with status: %d", resp.StatusCode)
 	}

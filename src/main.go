@@ -41,12 +41,15 @@ func (p *Professor) GenerateLecture(ctx context.Context, args map[string]interfa
 
 	// Instruction: Explain the topic in exactly ONE technical sentence.
 	prompt := fmt.Sprintf("Explain the topic in exactly ONE technical sentence. Topic: %s", topic)
+	log.Printf("[INFO] Generating content for topic: %s", topic)
 	resp, err := p.llmClient.GenerateContent(ctx, p.llmName, genai.Text(prompt), nil)
 	if err != nil {
+		log.Printf("[ERROR] LLM generation failed: %v", err)
 		return nil, fmt.Errorf("failed to generate sentence: %v", err)
 	}
 
 	sentence := strings.TrimSpace(resp.Text())
+	log.Printf("[INFO] LLM generated sentence: %s", sentence)
 
 	if sentence == "" {
 		return nil, fmt.Errorf("empty response from LLM")
@@ -60,10 +63,12 @@ func (p *Professor) GenerateLecture(ctx context.Context, args map[string]interfa
 	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewDataPart(map[string]interface{}{"request": sentence}))
 	msg.SetMeta("skillId", p.critiqueSkill)
 
+	log.Printf("[INFO] Sending message to student agent: %s, skill: %s", p.studentUrl, p.critiqueSkill)
 	a2aResp, err := p.a2aClient.SendMessage(ctx, &a2a.SendMessageRequest{
 		Message: msg,
 	})
 	if err != nil {
+		log.Printf("[ERROR] Failed to call student agent: %v", err)
 		return nil, fmt.Errorf("failed to call student agent at %s: %v", p.studentUrl, err)
 	}
 
@@ -87,6 +92,7 @@ func (p *Professor) GenerateLecture(ctx context.Context, args map[string]interfa
 		output = fmt.Sprintf("Task created: %s", task.ID)
 	}
 
+	log.Printf("[INFO] Received response from student agent: %v", output)
 	fmt.Printf("Sent to student: %s\n", sentence)
 	fmt.Printf("Received from student: %v\n", output)
 
