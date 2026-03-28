@@ -1,7 +1,7 @@
 {
   "name": "learning-professor",
   "version": "1.0.0",
-  "description": "An educational AI agent that generates technically precise academic sentences and collaborates with a student agent.",
+  "description": "Concise technical expert.",
   "author": "Dmytro Andrieiev",
   "endpoints": {
     "skill": "/api/skill/{skill_id}",
@@ -10,10 +10,11 @@
   "capabilities": [
     {
       "id": "generate-lecture-skill",
-      "name": "Generate Lecture",
-      "description": "Generates exactly one technically precise academic sentence about a topic and sends it to the student agent.",
+      "name": "Generate Technical Lecture",
+      "description": "One sentence technical explanation.",
       "input_modes": ["text"],
-      "tags": ["educational", "lecture-generation"]
+      "output_modes": ["text"],
+      "tags": ["concise"]
     }
   ]
 }
