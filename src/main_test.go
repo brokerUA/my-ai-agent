@@ -185,3 +185,30 @@ func TestHandleMessage_Success(t *testing.T) {
 		t.Errorf("Expected text 'Feedback', got %v", parts[0]["text"])
 	}
 }
+
+func TestHandleMessage_MethodNotFound(t *testing.T) {
+	p := &Professor{}
+	req := &adk.JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      "test-id",
+		Method:  "", // Empty method
+		Params:  json.RawMessage(`{}`),
+	}
+
+	resp, err := p.HandleMessage(context.Background(), req)
+	if err != nil {
+		t.Fatalf("HandleMessage failed: %v", err)
+	}
+
+	if resp.Error == nil {
+		t.Fatal("Expected error response, got nil")
+	}
+
+	errMap := resp.Error.(map[string]interface{})
+	if errMap["code"].(int) != -32601 {
+		t.Errorf("Expected error code -32601, got %v", errMap["code"])
+	}
+	if errMap["message"].(string) != "Method not found" {
+		t.Errorf("Expected error message 'Method not found', got %v", errMap["message"])
+	}
+}

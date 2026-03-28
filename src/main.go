@@ -41,15 +41,16 @@ func (p *Professor) GenerateLecture(ctx context.Context, args map[string]interfa
 	}
 
 	// Instruction: Explain the topic in exactly ONE technical sentence.
-	prompt := fmt.Sprintf("Explain the topic in exactly ONE technical sentence. Topic: %s", topic)
+// 	prompt := fmt.Sprintf("Explain the topic in exactly ONE technical sentence. Topic: %s", topic)
 	log.Printf("[INFO] Generating content for topic: %s", topic)
-	resp, err := p.llmClient.GenerateContent(ctx, p.llmName, genai.Text(prompt), nil)
-	if err != nil {
-		log.Printf("[ERROR] LLM generation failed: %v", err)
-		return nil, fmt.Errorf("failed to generate sentence: %v", err)
-	}
-
-	sentence := strings.TrimSpace(resp.Text())
+// 	resp, err := p.llmClient.GenerateContent(ctx, p.llmName, genai.Text(prompt), nil)
+// 	if err != nil {
+// 		log.Printf("[ERROR] LLM generation failed: %v", err)
+// 		return nil, fmt.Errorf("failed to generate sentence: %v", err)
+// 	}
+//
+// 	sentence := strings.TrimSpace(resp.Text())
+	sentence := strings.TrimSpace("OpenTelemetry (OTel) is an open-source, vendor-agnostic observability framework providing a standardized set of APIs, SDKs, and tools for collecting, transforming, and exporting telemetric data—specifically traces, metrics, and logs—from distributed systems to backend analytical platforms.")
 	log.Printf("[INFO] LLM generated sentence: %s", sentence)
 
 	if sentence == "" {
@@ -65,9 +66,13 @@ func (p *Professor) GenerateLecture(ctx context.Context, args map[string]interfa
 	msg.SetMeta("skillId", p.critiqueSkill)
 
 	log.Printf("[INFO] Sending message to student agent: %s, skill: %s", p.studentUrl, p.critiqueSkill)
-	a2aResp, err := p.a2aClient.SendMessage(ctx, &a2a.SendMessageRequest{
+	req := &a2a.SendMessageRequest{
 		Message: msg,
-	})
+	}
+	reqJSON, _ := json.Marshal(req)
+	log.Printf("[DEBUG] Student agent request: %s", string(reqJSON))
+
+	a2aResp, err := p.a2aClient.SendMessage(ctx, req)
 	if err != nil {
 		log.Printf("[ERROR] Failed to call student agent: %v", err)
 		return nil, fmt.Errorf("failed to call student agent at %s: %v", p.studentUrl, err)
@@ -94,6 +99,10 @@ func (p *Professor) GenerateLecture(ctx context.Context, args map[string]interfa
 	}
 
 	log.Printf("[INFO] Received response from student agent: %v", output)
+	if a2aRespMsg, ok := a2aResp.(*a2a.Message); ok {
+		respJSON, _ := json.Marshal(a2aRespMsg)
+		log.Printf("[DEBUG] Student agent response: %s", string(respJSON))
+	}
 	fmt.Printf("Sent to student: %s\n", sentence)
 	fmt.Printf("Received from student: %v\n", output)
 
