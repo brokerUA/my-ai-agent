@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -107,6 +108,69 @@ func (w *genaiWrapper) GenerateContent(ctx context.Context, model string, conten
 	return w.client.Models.GenerateContent(ctx, model, contents, config)
 }
 
+func (p *Professor) HandleMessage(ctx context.Context, req *adk.JSONRPCRequest) (*adk.JSONRPCResponse, error) {
+	if req.Method != "message/send" {
+		return &adk.JSONRPCResponse{
+			JSONRPC: "2.0",
+			ID:      req.ID,
+			Error: map[string]interface{}{
+				"code":    -32601,
+				"message": "Method not found",
+			},
+		}, nil
+	}
+
+	var params struct {
+		Message struct {
+			Parts []struct {
+				Kind string `json:"kind"`
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"message"`
+	}
+
+	if err := json.Unmarshal(req.Params, &params); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal params: %v", err)
+	}
+
+	var text string
+	for _, part := range params.Message.Parts {
+		if part.Kind == "text" {
+			text = part.Text
+			break
+		}
+	}
+
+	if text == "" {
+		return nil, fmt.Errorf("no text part found in message")
+	}
+
+	// Trigger GenerateLecture
+	output, err := p.GenerateLecture(ctx, map[string]interface{}{"request": text})
+	if err != nil {
+		return nil, err
+	}
+
+	// Prepare result in A2A format
+	result := map[string]interface{}{
+		"kind":      "message",
+		"messageId": fmt.Sprintf("msg-%s", req.ID),
+		"role":      "assistant",
+		"parts": []map[string]interface{}{
+			{
+				"kind": "text",
+				"text": fmt.Sprintf("%v", output),
+			},
+		},
+	}
+
+	return &adk.JSONRPCResponse{
+		JSONRPC: "2.0",
+		ID:      req.ID,
+		Result:  result,
+	}, nil
+}
+
 func main() {
 	// Initialize ADK app
 	app := adk.NewApp("learning-professor")
@@ -160,6 +224,8 @@ func main() {
 		studentUrl:    studentUrl,
 		critiqueSkill: critiqueSkillID,
 	}
+
+	app.SetHandler(professor.HandleMessage)
 
 	// Register tools (skills) for the agent.
 	app.AddTool(&adk.Tool{
