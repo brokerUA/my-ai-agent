@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/kagent-dev/kagent/go/adk"
+	"github.com/a2aproject/a2a-go/a2a"
 	"google.golang.org/genai"
 )
 
-// MockLLMClient implements LLMClient interface for testing
+// MockLLMClient implements LLMClient interface for testing.
 type MockLLMClient struct {
 	Response *genai.GenerateContentResponse
 	Err      error
@@ -19,13 +19,13 @@ func (m *MockLLMClient) GenerateContent(ctx context.Context, model string, conte
 	return m.Response, m.Err
 }
 
-// MockA2AClient implements A2AClient interface for testing
+// MockA2AClient implements A2AClient interface for testing.
 type MockA2AClient struct {
-	Response *adk.InvokeResponse
+	Response a2a.SendMessageResult
 	Err      error
 }
 
-func (m *MockA2AClient) Invoke(ctx context.Context, url string, req adk.InvokeRequest) (*adk.InvokeResponse, error) {
+func (m *MockA2AClient) SendMessage(ctx context.Context, req *a2a.SendMessageRequest) (a2a.SendMessageResult, error) {
 	return m.Response, m.Err
 }
 
@@ -44,17 +44,15 @@ func TestGenerateLecture_Success(t *testing.T) {
 		},
 	}
 	mockA2A := &MockA2AClient{
-		Response: &adk.InvokeResponse{
-			Output: "Student feedback",
-		},
+		Response: a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewDataPart(map[string]interface{}{"output": "Student feedback"})),
 	}
 
 	p := &Professor{
 		llmClient:     mockLLM,
 		a2aClient:     mockA2A,
 		llmName:       "gemini-pro",
-		studentURL:    "http://student",
-		critiqueSkill: "critique",
+		studentUrl:    "http://student",
+		critiqueSkill: "critique-content-skill",
 	}
 
 	args := map[string]interface{}{
@@ -119,7 +117,7 @@ func TestGenerateLecture_A2AError(t *testing.T) {
 	p := &Professor{
 		llmClient:  mockLLM,
 		a2aClient:  mockA2A,
-		studentURL: "http://student",
+		studentUrl: "http://student",
 	}
 	args := map[string]interface{}{"request": "topic"}
 

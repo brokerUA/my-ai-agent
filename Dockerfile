@@ -30,9 +30,6 @@ WORKDIR /root/
 # Copy the binary from the builder stage
 COPY --from=builder /app/agent .
 
-# Set environment variables for LLM access
-ENV GOOGLE_API_KEY=""
-
 # Expose any necessary ports (assuming 8080 as standard)
 EXPOSE 8080
 

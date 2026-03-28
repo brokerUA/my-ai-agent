@@ -7,33 +7,40 @@ import (
 	"os"
 	"strings"
 
+	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/a2aproject/a2a-go/a2aclient"
 	"github.com/kagent-dev/kagent/go/adk"
 	"google.golang.org/genai"
 )
 
+// LLMClient is an interface for generating content using LLM.
 type LLMClient interface {
 	GenerateContent(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
 }
 
+// A2AClient is an interface for sending messages via A2A protocol.
 type A2AClient interface {
-	Invoke(ctx context.Context, url string, req adk.InvokeRequest) (*adk.InvokeResponse, error)
+	SendMessage(ctx context.Context, req *a2a.SendMessageRequest) (a2a.SendMessageResult, error)
 }
 
+// Professor is an agent that generates a technical explanation and calls a student agent for critique.
 type Professor struct {
 	llmClient     LLMClient
 	a2aClient     A2AClient
 	llmName       string
-	studentURL    string
+	studentUrl    string
 	critiqueSkill string
 }
 
+// GenerateLecture generates a one-sentence technical explanation and sends it to another agent.
 func (p *Professor) GenerateLecture(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	topic, ok := args["request"].(string)
 	if !ok {
 		return nil, fmt.Errorf("missing 'request' argument")
 	}
 
-	prompt := fmt.Sprintf("Provide exactly ONE technically precise academic sentence explaining the topic: %s. Respond in English only. No additional text.", topic)
+	// Instruction: Explain the topic in exactly ONE technical sentence.
+	prompt := fmt.Sprintf("Explain the topic in exactly ONE technical sentence. Topic: %s", topic)
 	resp, err := p.llmClient.GenerateContent(ctx, p.llmName, genai.Text(prompt), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate sentence: %v", err)
@@ -45,15 +52,45 @@ func (p *Professor) GenerateLecture(ctx context.Context, args map[string]interfa
 		return nil, fmt.Errorf("empty response from LLM")
 	}
 
-	a2aResp, err := p.a2aClient.Invoke(ctx, p.studentURL, adk.InvokeRequest{
-		SkillID: p.critiqueSkill,
-		Input:   map[string]interface{}{"request": sentence},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to call student agent at %s: %v", p.studentURL, err)
+	if p.a2aClient == nil {
+		return nil, fmt.Errorf("A2A client is not initialized")
 	}
 
-	return a2aResp.Output, nil
+	// Call 'kagent__NS__learning_student' via 'critique-content-skill' with the sentence.
+	msg := a2a.NewMessage(a2a.MessageRoleUser, a2a.NewDataPart(map[string]interface{}{"request": sentence}))
+	msg.SetMeta("skillId", p.critiqueSkill)
+
+	a2aResp, err := p.a2aClient.SendMessage(ctx, &a2a.SendMessageRequest{
+		Message: msg,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to call student agent at %s: %v", p.studentUrl, err)
+	}
+
+	// Extract response from the student agent.
+	var output interface{}
+	if msg, ok := a2aResp.(*a2a.Message); ok {
+		for _, part := range msg.Parts {
+			if data := part.Data(); data != nil {
+				if m, ok := data.(map[string]interface{}); ok {
+					if out, ok := m["output"]; ok {
+						output = out
+						break
+					}
+				}
+				output = data
+			} else if text := part.Text(); text != "" {
+				output = text
+			}
+		}
+	} else if task, ok := a2aResp.(*a2a.Task); ok {
+		output = fmt.Sprintf("Task created: %s", task.ID)
+	}
+
+	fmt.Printf("Sent to student: %s\n", sentence)
+	fmt.Printf("Received from student: %v\n", output)
+
+	return output, nil
 }
 
 type genaiWrapper struct {
@@ -69,18 +106,25 @@ func main() {
 	app := adk.NewApp("learning-professor")
 
 	// Environment variables for A2A and LLM
-	controllerURL := os.Getenv("KAGENT_CONTROLLER_URL")
-	studentAgent := os.Getenv("STUDENT_AGENT_NAME")
-	studentNamespace := os.Getenv("STUDENT_AGENT_NAMESPACE")
-	critiqueSkillID := os.Getenv("CRITIQUE_SKILL_ID")
-	llmName := os.Getenv("LLM_NAME")
-	apiKey := os.Getenv("GOOGLE_API_KEY")
-
-	if controllerURL == "" || studentAgent == "" || studentNamespace == "" || critiqueSkillID == "" || llmName == "" || apiKey == "" {
-		log.Fatal("Missing required environment variables (KAGENT_CONTROLLER_URL, STUDENT_AGENT_NAME, STUDENT_AGENT_NAMESPACE, CRITIQUE_SKILL_ID, LLM_NAME, GOOGLE_API_KEY)")
+	studentUrl := os.Getenv("STUDENT_AGENT_URL")
+	if studentUrl == "" {
+		log.Fatal("Missing required environment variable STUDENT_AGENT_URL")
 	}
 
-	studentURL := fmt.Sprintf("%s/api/a2a/%s/%s", strings.TrimRight(controllerURL, "/"), studentNamespace, studentAgent)
+	critiqueSkillID := os.Getenv("CRITIQUE_SKILL_ID")
+	if critiqueSkillID == "" {
+		log.Fatal("Missing required environment variable CRITIQUE_SKILL_ID")
+	}
+
+	llmName := os.Getenv("LLM_NAME")
+	if llmName == "" {
+		log.Fatal("Missing required environment variable LLM_NAME")
+	}
+
+	apiKey := os.Getenv("GOOGLE_API_KEY")
+	if apiKey == "" {
+		log.Fatal("Missing required environment variable GOOGLE_API_KEY")
+	}
 
 	ctx := context.Background()
 	gc, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -90,17 +134,31 @@ func main() {
 		log.Fatalf("failed to create Gemini client: %v", err)
 	}
 
+	// Create A2A client for communication with other agents.
+	endpoints := []*a2a.AgentInterface{
+		{
+			URL:             studentUrl,
+			ProtocolBinding: a2a.TransportProtocolHTTPJSON,
+			ProtocolVersion: a2a.Version,
+		},
+	}
+	a2aClient, err := a2aclient.NewFromEndpoints(ctx, endpoints)
+	if err != nil {
+		log.Fatalf("failed to create A2A client: %v", err)
+	}
+
 	professor := &Professor{
 		llmClient:     &genaiWrapper{client: gc},
-		a2aClient:     adk.NewA2AClient(),
+		a2aClient:     a2aClient,
 		llmName:       llmName,
-		studentURL:    studentURL,
+		studentUrl:    studentUrl,
 		critiqueSkill: critiqueSkillID,
 	}
 
+	// Register tools (skills) for the agent.
 	app.AddTool(&adk.Tool{
 		Name:        "generate-lecture-skill",
-		Description: "Generates exactly one technically precise academic sentence about a topic and sends it to the student agent.",
+		Description: "One sentence technical explanation.",
 		Handler:     professor.GenerateLecture,
 	})
 

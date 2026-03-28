@@ -7,8 +7,8 @@ KAGENT_CONTROLLER_URL = "http://kagent-controller.kagent.svc.cluster.local:8083"
 STUDENT_AGENT_NAME = "learning-student"
 STUDENT_AGENT_NAMESPACE = "kagent"
 CRITIQUE_SKILL_ID = "critique-content-skill"
-LLM_NAME = "gemini-2.0-flash"
-GOOGLE_API_KEY = "your-api-key-here"
+LLM_NAME = "gemini-2.5-flash-lite"
+# GOOGLE_API_KEY is passed from the environment
 
 [tasks."build"]
 description = "Build the ADK agent"

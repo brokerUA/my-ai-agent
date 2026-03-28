@@ -8,6 +8,12 @@ require (
 )
 
 require (
+	github.com/a2aproject/a2a-go v1.0.0-alpha.3.0.20260309154536-e4af18e0d8c2
+	github.com/google/uuid v1.6.0 // indirect
+	golang.org/x/mod v0.33.0 // indirect
+)
+
+require (
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
@@ -34,7 +40,6 @@ require (
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
-	google.golang.org/adk v1.0.1-0.20260324165323-68be1e5cc6b0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/grpc v1.79.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect

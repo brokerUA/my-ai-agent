@@ -2,12 +2,15 @@ package adk
 
 import (
 	"context"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"go.uber.org/zap"
 	"net/http"
+	"net/url"
+	"strings"
 
 	_ "embed"
 )
@@ -111,6 +114,46 @@ func NewA2AClient() *A2AClient {
 	return &A2AClient{}
 }
 
-func (c *A2AClient) Invoke(ctx context.Context, url string, req InvokeRequest) (*InvokeResponse, error) {
-	return &InvokeResponse{Output: "Response from student"}, nil
+func (c *A2AClient) Invoke(ctx context.Context, baseURL string, req InvokeRequest) (*InvokeResponse, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse base URL: %v", err)
+	}
+
+	skillPath := "/api/skill/" + req.SkillID
+	if strings.HasSuffix(u.Path, "/") && strings.HasPrefix(skillPath, "/") {
+		u.Path = u.Path + skillPath[1:]
+	} else if !strings.HasSuffix(u.Path, "/") && !strings.HasPrefix(skillPath, "/") {
+		u.Path = u.Path + "/" + skillPath
+	} else {
+		u.Path = u.Path + skillPath
+	}
+
+	body, err := json.Marshal(req.Input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request input: %v", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed with status: %d", resp.StatusCode)
+	}
+
+	var invokeResp InvokeResponse
+	if err := json.NewDecoder(resp.Body).Decode(&invokeResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %v", err)
+	}
+
+	return &invokeResp, nil
 }
