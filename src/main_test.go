@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/kagent-dev/kagent/go/adk"
 	"google.golang.org/genai"
 )
 
@@ -124,5 +126,62 @@ func TestGenerateLecture_A2AError(t *testing.T) {
 	_, err := p.GenerateLecture(context.Background(), args)
 	if err == nil {
 		t.Fatal("Expected error from A2A, got nil")
+	}
+}
+
+func TestHandleMessage_Success(t *testing.T) {
+	mockLLM := &MockLLMClient{
+		Response: &genai.GenerateContentResponse{
+			Candidates: []*genai.Candidate{
+				{
+					Content: &genai.Content{
+						Parts: []*genai.Part{
+							{Text: "OTel is an observability framework."},
+						},
+					},
+				},
+			},
+		},
+	}
+	mockA2A := &MockA2AClient{
+		Response: a2a.NewMessage(a2a.MessageRoleAgent, a2a.NewDataPart(map[string]interface{}{"output": "Feedback"})),
+	}
+
+	p := &Professor{
+		llmClient:     mockLLM,
+		a2aClient:     mockA2A,
+		studentUrl:    "http://student",
+		critiqueSkill: "skill",
+	}
+
+	rawParams := json.RawMessage(`{"message":{"parts":[{"kind":"text","text":"What is OTel?"}]}}`)
+	req := &adk.JSONRPCRequest{
+		JSONRPC: "2.0",
+		ID:      "test-uuid",
+		Method:  "message/send",
+		Params:  rawParams,
+	}
+
+	resp, err := p.HandleMessage(context.Background(), req)
+	if err != nil {
+		t.Fatalf("HandleMessage failed: %v", err)
+	}
+
+	if resp.ID != "test-uuid" {
+		t.Errorf("Expected ID 'test-uuid', got %v", resp.ID)
+	}
+
+	result, ok := resp.Result.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Result is not a map: %T", resp.Result)
+	}
+
+	if result["kind"] != "message" {
+		t.Errorf("Expected kind 'message', got %v", result["kind"])
+	}
+
+	parts := result["parts"].([]map[string]interface{})
+	if len(parts) == 0 || parts[0]["text"] != "Feedback" {
+		t.Errorf("Expected text 'Feedback', got %v", parts[0]["text"])
 	}
 }

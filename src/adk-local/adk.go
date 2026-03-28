@@ -20,9 +20,10 @@ import (
 var agentCard []byte
 
 type App struct {
-	name   string
-	tools  []*Tool
-	logger logr.Logger
+	name    string
+	tools   []*Tool
+	handler func(context.Context, *JSONRPCRequest) (*JSONRPCResponse, error)
+	logger  logr.Logger
 }
 
 func NewApp(name string) *App {
@@ -42,6 +43,24 @@ type Tool struct {
 
 func (a *App) AddTool(t *Tool) {
 	a.tools = append(a.tools, t)
+}
+
+func (a *App) SetHandler(h func(context.Context, *JSONRPCRequest) (*JSONRPCResponse, error)) {
+	a.handler = h
+}
+
+type JSONRPCRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      interface{}     `json:"id"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params"`
+}
+
+type JSONRPCResponse struct {
+	JSONRPC string      `json:"jsonrpc"`
+	ID      interface{} `json:"id"`
+	Result  interface{} `json:"result,omitempty"`
+	Error   interface{} `json:"error,omitempty"`
 }
 
 func (a *App) Run() error {
@@ -65,6 +84,33 @@ func (a *App) Run() error {
 			"name":   a.name,
 			"info":   "AI Agent Professor is running",
 		})
+	})
+
+	mux.HandleFunc("POST /{$}", func(w http.ResponseWriter, r *http.Request) {
+		a.logger.Info("Incoming POST request", "path", r.URL.Path)
+		var req JSONRPCRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			a.logger.Error(err, "Failed to decode JSON-RPC request")
+			http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
+			return
+		}
+
+		if a.handler == nil {
+			a.logger.Error(nil, "No JSON-RPC handler set")
+			http.Error(w, "Method not implemented", http.StatusNotImplemented)
+			return
+		}
+
+		resp, err := a.handler(r.Context(), &req)
+		if err != nil {
+			a.logger.Error(err, "JSON-RPC handler error")
+			// Return a JSON-RPC error response if needed, but for now just internal error
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
 	})
 
 	mux.HandleFunc("POST /api/skill/", func(w http.ResponseWriter, r *http.Request) {
